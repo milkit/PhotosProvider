@@ -7,7 +7,9 @@
 //
 
 import Foundation
+import Photos
 
 public protocol PhotosProviderAssetOption {
     
+    var imageRequestOptions: PHImageRequestOptions { get set }
 }

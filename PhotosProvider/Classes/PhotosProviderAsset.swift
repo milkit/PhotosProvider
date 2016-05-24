@@ -74,51 +74,36 @@ extension PHAsset: PhotosProviderAsset {
         progress: NSProgress? -> Void,
         option: PhotosProviderAssetOption?,
         completion: (PhotosProviderAsset, PhotosProviderAssetResult) -> Void) {
-            
-            // TODO: option
-            
-            let options = PHImageRequestOptions()
-            options.deliveryMode = .HighQualityFormat
-            options.networkAccessAllowed = true
-            options.version = .Current
-            options.resizeMode = .Fast
-            options.progressHandler = { progress, error, stop, info in
+        
+        self.imageRequestID = PHImageManager.defaultManager().requestImageForAsset(
+            self,
+            targetSize: targetSize,
+            contentMode: PHImageContentMode.AspectFill,
+            options: option?.imageRequestOptions) { (image, info) -> Void in
                 
-                // TODO:
-            }
-            
-            self.imageRequestID = PHImageManager.defaultManager().requestImageForAsset(
-                self,
-                targetSize: targetSize,
-                contentMode: PHImageContentMode.AspectFill,
-                options: options) { (image, info) -> Void in
-                    
-                    guard let image = image else {
-                        dispatch_async(dispatch_get_main_queue()) {
-                            completion(self, .Failure(PhotosProviderAssetResultErrorType.Unknown))
-                        }
-                        return
-                    }
-                    
+                guard let image = image else {
                     dispatch_async(dispatch_get_main_queue()) {
-                        completion(self, .Success(image))
+                        completion(self, .Failure(PhotosProviderAssetResultErrorType.Unknown))
                     }
-            }
+                    return
+                }
+                
+                dispatch_async(dispatch_get_main_queue()) {
+                    completion(self, .Success(image))
+                }
+        }
     }
     
     public func requestOriginalImage(
         progress progress: NSProgress? -> Void,
         option: PhotosProviderAssetOption?,
         completion: (PhotosProviderAsset, PhotosProviderAssetResult) -> Void) {
+        
+        let imageRequestOptions: PHImageRequestOptions = option?.imageRequestOptions ?? PHImageRequestOptions()
+        
+        if imageRequestOptions.progressHandler == nil {
             
-            // TODO: option
-
-            
-            let options = PHImageRequestOptions()
-            options.deliveryMode = .HighQualityFormat
-            options.networkAccessAllowed = true
-            options.version = .Current
-            options.progressHandler = { _progress, error, stop, info in
+            imageRequestOptions.progressHandler = { _progress, error, stop, info in
                 
                 dispatch_async(dispatch_get_main_queue()) {
                     if self.originalImageDownloadProgress == nil {
@@ -127,26 +112,27 @@ extension PHAsset: PhotosProviderAsset {
                     }
                     
                     self.originalImageDownloadProgress?.completedUnitCount = Int64(_progress * Double(10000))
-                                        
+                    
                     if _progress == 1.0 {
                         self.originalImageDownloadProgress = nil
                     }
                 }
             }
-            
-            self.originalImageRequestID = PHImageManager.defaultManager().requestImageForAsset(
-                self,
-                targetSize: CGSize(width: self.pixelWidth, height: self.pixelHeight),
-                contentMode: PHImageContentMode.AspectFill,
-                options: options) { (image, info) -> Void in
-                    
-                    guard let image = image else {
-                        completion(self, .Failure(PhotosProviderAssetResultErrorType.Unknown))
-                        return
-                    }
-                    
-                    completion(self, .Success(image))
-            }
+        }
+        
+        self.originalImageRequestID = PHImageManager.defaultManager().requestImageForAsset(
+            self,
+            targetSize: CGSize(width: self.pixelWidth, height: self.pixelHeight),
+            contentMode: PHImageContentMode.AspectFill,
+            options: imageRequestOptions) { (image, info) -> Void in
+                
+                guard let image = image else {
+                    completion(self, .Failure(PhotosProviderAssetResultErrorType.Unknown))
+                    return
+                }
+                
+                completion(self, .Success(image))
+        }
     }
     
     public dynamic var originalImageDownloadProgress: NSProgress? {
