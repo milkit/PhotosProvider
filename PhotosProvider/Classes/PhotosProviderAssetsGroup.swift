@@ -130,11 +130,14 @@ private func divideByDay(dateSortedAssets dateSortedAssets: PhotosProviderAssets
     let dayAssets = PhotosProviderAssetsGroupByDay()
     
     var tmpDayAsset: PhotosProviderAssetsGroupByDay.DayAssets!
-    var processingDate: NSDate!
     
     dateSortedAssets.enumerateAssetsUsingBlock { (asset) -> Void in
         
-        processingDate = dateWithOutTime(asset.creationDate)
+        guard let processingDate = dateWithoutTime(asset.creationDate) else {
+            
+            return
+        }
+        
         if tmpDayAsset != nil && processingDate.isEqualToDate(tmpDayAsset!.day) == false {
             
             tmpDayAsset = nil
@@ -147,16 +150,20 @@ private func divideByDay(dateSortedAssets dateSortedAssets: PhotosProviderAssets
         }
         
         tmpDayAsset.assets.append(asset)
-        
     }
     
     return dayAssets
 }
 
-private func dateWithOutTime(date: NSDate!) -> NSDate {
+private func dateWithoutTime(date: NSDate?) -> NSDate? {
+    
+    guard let date = date else {
+        
+        return nil
+    }
     
     let calendar: NSCalendar = NSCalendar.currentCalendar()
-    let units: NSCalendarUnit = [NSCalendarUnit.Year, NSCalendarUnit.Month, NSCalendarUnit.Day]
+    let units: NSCalendarUnit = [.Year, .Month, .Day]
     let comp: NSDateComponents = calendar.components(units, fromDate: date)
-    return calendar.dateFromComponents(comp)!
+    return calendar.dateFromComponents(comp)
 }
