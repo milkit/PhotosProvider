@@ -55,10 +55,12 @@ public class PhotosProviderCollection: Hashable {
         }
         
         let operation = NSBlockOperation {
-            guard let collection = self.sourceCollection as? PHAssetCollection else {
-                assert(false, "sourceCollection is not PHAssetCollection")
+            
+            guard let collection = self.sourceCollection else {
+                
                 return
             }
+            
             let fetchOptions = self.configuration.fetchPhotosOptions()
             fetchOptions.sortDescriptors = [
                 NSSortDescriptor(key: "creationDate", ascending: false),
@@ -76,7 +78,7 @@ public class PhotosProviderCollection: Hashable {
     }
     
     public func requestGroupByDay(refetch refetch: Bool = false, completion: (groupByDay: PhotosProviderAssetsGroupByDay) -> Void) {
-        
+     
         if let groupByDay = self.groupByDay where refetch == false {
             completion(groupByDay: groupByDay)
             return
@@ -93,7 +95,7 @@ public class PhotosProviderCollection: Hashable {
     
     private var groupByDay: PhotosProviderAssetsGroupByDay?
     private var group: PhotosProviderAssetsGroup?
-    private var sourceCollection: AnyObject?
+    private var sourceCollection: PHAssetCollection?
     private var configuration: PhotosProviderConfiguration
     
     public var hashValue: Int {
