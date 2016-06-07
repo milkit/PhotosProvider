@@ -50,16 +50,25 @@ public class PhotosProviderCollection: Hashable {
     public func requestGroup(refetch refetch: Bool = false, completion: (group: PhotosProviderAssetsGroup) -> Void) {
         
         if let group = self.group where refetch == false {
+            
             completion(group: group)
             return
         }
         
-        let operation = NSBlockOperation {
+        guard let collection = self.sourceCollection else {
             
-            guard let collection = self.sourceCollection else {
+            if let group = self.group {
                 
-                return
+                completion(group: group)
             }
+            else {
+                
+                assert(false, "group or sourceCollection must exist")
+            }
+            return
+        }
+        
+        let operation = NSBlockOperation {
             
             let fetchOptions = self.configuration.fetchPhotosOptions()
             fetchOptions.sortDescriptors = [
