@@ -75,10 +75,12 @@ extension PHAsset: PhotosProviderAsset {
         option: PhotosProviderAssetOption?,
         completion: (PhotosProviderAsset, PhotosProviderAssetResult) -> Void) {
         
+        let contentMode: PHImageContentMode = option?.contentMode ?? .AspectFill
+        
         self.imageRequestID = PHImageManager.defaultManager().requestImageForAsset(
             self,
             targetSize: targetSize,
-            contentMode: PHImageContentMode.AspectFill,
+            contentMode: contentMode,
             options: option?.imageRequestOptions) { (image, info) -> Void in
                 
                 guard let image = image else {
@@ -120,10 +122,12 @@ extension PHAsset: PhotosProviderAsset {
             }
         }
         
+        let contentMode: PHImageContentMode = option?.contentMode ?? .AspectFill
+        
         self.originalImageRequestID = PHImageManager.defaultManager().requestImageForAsset(
             self,
             targetSize: CGSize(width: self.pixelWidth, height: self.pixelHeight),
-            contentMode: PHImageContentMode.AspectFill,
+            contentMode: contentMode,
             options: imageRequestOptions) { (image, info) -> Void in
                 
                 guard let image = image else {

@@ -12,4 +12,5 @@ import Photos
 public protocol PhotosProviderAssetOption {
     
     var imageRequestOptions: PHImageRequestOptions { get set }
+    var contentMode: PHImageContentMode? { get set }
 }
