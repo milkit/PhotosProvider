@@ -9,18 +9,14 @@
 import Foundation
 import Photos
 
-#if !PHOTOSPROVIDER_EXCLUDE_IMPORT_MODULES
-    import GCDKit
-#endif
-
 public func == (lhs: PhotosProviderCollection, rhs: PhotosProviderCollection) -> Bool {
     
     return lhs === rhs
 }
 
-public class PhotosProviderCollection: Hashable {
+open class PhotosProviderCollection: Hashable {
     
-    public private(set) var title: String
+    open private(set) var title: String
     
     public init(title: String, group: PhotosProviderAssetsGroup, configuration: PhotosProviderConfiguration, buildGroupByDay: Bool = false) {
         
@@ -29,8 +25,8 @@ public class PhotosProviderCollection: Hashable {
         self.group = group
 
         if buildGroupByDay {
-            group.requestAssetsGroupByDays { groupByDay in
-                self.groupByDay = groupByDay
+            group.requestAssetsGroupByDays { [weak self] groupByDay in
+                self?.groupByDay = groupByDay
             }
         }
     }
@@ -42,62 +38,62 @@ public class PhotosProviderCollection: Hashable {
         self.sourceCollection = sourceCollection
     }
     
-    public func cancelRequestGroup() {
+    open func cancelRequestGroup() {
         
-        self.currentReuqestGroupOperation?.cancel()
+        currentReuqestGroupOperation?.cancel()
     }
         
-    public func requestGroup(refetch refetch: Bool = false, completion: (group: PhotosProviderAssetsGroup) -> Void) {
+    open func requestGroup(refetch: Bool = false, completion: @escaping (_ group: PhotosProviderAssetsGroup) -> Void) {
         
-        if let group = self.group where refetch == false {
-            
-            completion(group: group)
+        if let group = group, refetch == false {
+            completion(group)
             return
         }
         
-        guard let collection = self.sourceCollection else {
+        guard let collection = sourceCollection else {
             
-            if let group = self.group {
+            if let group = group {
                 
-                completion(group: group)
+                completion(group)
+                return
             }
             else {
                 
                 assert(false, "group or sourceCollection must exist")
             }
-            return
         }
         
-        let operation = NSBlockOperation {
+        let operation = BlockOperation { [unowned self] in
             
             let fetchOptions = self.configuration.fetchPhotosOptions()
             fetchOptions.sortDescriptors = [
                 NSSortDescriptor(key: "creationDate", ascending: false),
             ]
-            let _assets = PHAsset.fetchAssetsInAssetCollection(collection, options: fetchOptions)
-            self.group = _assets
+            let assets = PHAsset.fetchAssets(in: collection, options: fetchOptions)
+            let assetGroup = AssetGroup(fetchResult: assets)
+            self.group = assetGroup
             
-            GCDBlock.async(.Main) {
-                completion(group: _assets)
+            DispatchQueue.main.async {
+                completion(assetGroup)
             }
         }
         
-        self.currentReuqestGroupOperation = operation
+        currentReuqestGroupOperation = operation
         PhotosProviderCollection.operationQueue.addOperation(operation)
     }
     
-    public func requestGroupByDay(refetch refetch: Bool = false, completion: (groupByDay: PhotosProviderAssetsGroupByDay) -> Void) {
-     
-        if let groupByDay = self.groupByDay where refetch == false {
-            completion(groupByDay: groupByDay)
+    open func requestGroupByDay(refetch: Bool = false, completion: @escaping (_ groupByDay: PhotosProviderAssetsGroupByDay) -> Void) {
+        
+        if let groupByDay = groupByDay, refetch == false {
+            completion(groupByDay)
             return
         }
         
-        self.requestGroup(refetch: refetch) { [weak self] group in
-            group.requestAssetsGroupByDays { _groupByDay in
+        requestGroup(refetch: refetch) { [weak self] group in
+            group.requestAssetsGroupByDays { [weak self] _groupByDay in
                 
                 self?.groupByDay = _groupByDay
-                completion(groupByDay: _groupByDay)
+                completion(_groupByDay)
             }
         }
     }
@@ -107,15 +103,15 @@ public class PhotosProviderCollection: Hashable {
     private var sourceCollection: PHAssetCollection?
     private var configuration: PhotosProviderConfiguration
     
-    public var hashValue: Int {
+    open var hashValue: Int {
         
         return ObjectIdentifier(self).hashValue
     }
     
-    private var currentReuqestGroupOperation: NSOperation?
+    private var currentReuqestGroupOperation: Operation?
     
-    private static let operationQueue: NSOperationQueue = {
-        let queue = NSOperationQueue()
+    private static let operationQueue: OperationQueue = {
+        let queue = OperationQueue()
         queue.maxConcurrentOperationCount = 10
         return queue
     }()

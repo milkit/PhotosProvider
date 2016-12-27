@@ -10,135 +10,140 @@ import Foundation
 import Photos
 import CoreLocation
 
-#if !PHOTOSPROVIDER_EXCLUDE_IMPORT_MODULES
-    import GCDKit
-#endif
-
 public protocol PhotosProviderAssetsGroup {
     
-    func requestAssetsGroupByDays(result: ((assetsGroupByDay: PhotosProviderAssetsGroupByDay) -> Void)?)
-    func enumerateAssetsUsingBlock(block: ((asset: PhotosProviderAsset) -> Void)?)
+    func requestAssetsGroupByDays(_ result: ((_ assetsGroupByDay: PhotosProviderAssetsGroupByDay) -> Void)?)
+    func enumerateAssets(_ block: ((_ asset: PhotosProviderAsset) -> Void)?)
     
     var count: Int { get }
-    
+
     subscript (index: Int) -> PhotosProviderAsset? { get }
     var first: PhotosProviderAsset? { get }
     var last: PhotosProviderAsset? { get }
 }
 
-public class CustomAssetsGroup: PhotosProviderAssetsGroup {
+open class CustomAssetsGroup: PhotosProviderAssetsGroup {
     
-    public private(set) var assets : [PhotosProviderAsset] = []
+    open private(set) var assets : [PhotosProviderAsset] = []
     
     public init(assets: [PhotosProviderAsset]) {
         
         self.assets = assets
     }
     
-    public func requestAssetsGroupByDays(result: ((assetsGroupByDay: PhotosProviderAssetsGroupByDay) -> Void)?) {
+    open func requestAssetsGroupByDays(_ result: ((_ assetsGroupByDay: PhotosProviderAssetsGroupByDay) -> Void)?) {
         
-        GCDBlock.async(.Default) {
+        DispatchQueue.global(qos: .default).async {
             
             let dividedAssets = divideByDay(dateSortedAssets: self)
             
-            GCDBlock.async(.Main) {
-                result?(assetsGroupByDay: dividedAssets)
+            DispatchQueue.main.async {
+                
+                result?(dividedAssets)
             }
         }
     }
     
-    public func enumerateAssetsUsingBlock(block: ((asset: PhotosProviderAsset) -> Void)?) {
+    open func enumerateAssets(_ block: ((_ asset: PhotosProviderAsset) -> Void)?) {
         
-        let sortedAssets = self.assets.sort({ $0.creationDate?.compare($1.creationDate ?? NSDate()) == NSComparisonResult.OrderedDescending })
+        let sortedAssets = assets.sorted(by: {
+            $0.creationDate ?? Date() > $1.creationDate ?? Date()
+        })
         for asset in sortedAssets {
             
-            block?(asset: asset)
+            block?(asset)
         }
+    }
+    
+    open var count: Int {
+        
+        return assets.count
+    }
+    
+    open subscript (index: Int) -> PhotosProviderAsset? {
+        
+        return assets[index]
+    }
+    
+    open var first: PhotosProviderAsset? {
+        
+        return assets.first
+    }
+    
+    open var last: PhotosProviderAsset? {
+        
+        return assets.last
+    }
+}
+
+public class AssetGroup: PhotosProviderAssetsGroup {
+    
+    public private(set) var assets : PHFetchResult<PHAsset>
+    
+    public init(fetchResult: PHFetchResult<PHAsset>) {
+        
+        self.assets = fetchResult
+    }
+    
+    public func requestAssetsGroupByDays(_ result: ((_ assetsGroupByDay: PhotosProviderAssetsGroupByDay) -> Void)?) {
+        
+        DispatchQueue.global(qos: .default).async {
+            
+            let dividedAssets = divideByDay(dateSortedAssets: self)
+            
+            DispatchQueue.main.async {
+                
+                result?(dividedAssets)
+            }
+        }
+    }
+    
+    public func enumerateAssets(_ block: ((_ asset: PhotosProviderAsset) -> Void)?) {
+        
+        assets.enumerateObjects({ (asset: PHAsset, index, stop) in
+            block?(asset)
+        })
     }
     
     public var count: Int {
         
-        return self.assets.count
+        return assets.count
     }
     
     public subscript (index: Int) -> PhotosProviderAsset? {
         
-        return self.assets[index]
+        return assets[index]
     }
     
     public var first: PhotosProviderAsset? {
         
-        return self.assets.first
+        return assets.firstObject
     }
     
     public var last: PhotosProviderAsset? {
         
-        return self.assets.last
+        return assets.lastObject
     }
 }
 
-extension PHFetchResult: PhotosProviderAssetsGroup {
+fileprivate func divideByDay(dateSortedAssets: PhotosProviderAssetsGroup) -> PhotosProviderAssetsGroupByDay {
     
-    public func requestAssetsGroupByDays(result: ((assetsGroupByDay: PhotosProviderAssetsGroupByDay) -> Void)?) {
+    func dateWithoutTime(_ date: Date!) -> Date {
         
-        assert(self.count == 0 || self.firstObject is PHAsset, "AssetsGroup must be PHFetchResult of PHAsset.")
-        
-        GCDBlock.async(.Default) {
-            
-            let dividedAssets = divideByDay(dateSortedAssets: self)
-            
-            GCDBlock.async(.Main) {
-                result?(assetsGroupByDay: dividedAssets)
-            }
-        }
+        let calendar = Calendar.current
+        let dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
+        return calendar.date(from: dateComponents)!
     }
-    
-    public func enumerateAssetsUsingBlock(block: ((asset: PhotosProviderAsset) -> Void)?) {
-        
-        assert(self.count == 0 || self.firstObject is PHAsset, "AssetsGroup must be PHFetchResult of PHAsset.")
-        
-        self.enumerateObjectsUsingBlock { (asset, index, stop) -> Void in
-            
-            if let asset = asset as? PHAsset {
-                
-                block?(asset: asset)
-            }
-        }
-    }
-        
-    public subscript (index: Int) -> PhotosProviderAsset? {
-        
-        assert(self.count == 0 || self.firstObject is PHAsset, "AssetsGroup must be PHFetchResult of PHAsset.")
-        
-        return self.objectAtIndex(index) as? PHAsset
-    }
-    
-    
-    public var first: PhotosProviderAsset? {
-        
-        return self.firstObject as? PhotosProviderAsset
-    }
-    
-    public var last: PhotosProviderAsset? {
-        
-        return self.lastObject as? PhotosProviderAsset
-    }
-}
-
-private func divideByDay(dateSortedAssets dateSortedAssets: PhotosProviderAssetsGroup) -> PhotosProviderAssetsGroupByDay {
     
     let dayAssets = PhotosProviderAssetsGroupByDay()
     
     var tmpDayAsset: PhotosProviderAssetsGroupByDay.DayAssets!
+    var processingDate: Date!
     
-    dateSortedAssets.enumerateAssetsUsingBlock { (asset) -> Void in
+    dateSortedAssets.enumerateAssets { (asset) -> Void in
         
-        guard let processingDate = dateWithoutTime(asset.creationDate) else {
-            
-            return
-        }
-        
-        if tmpDayAsset != nil && processingDate.isEqualToDate(tmpDayAsset!.day) == false {
+        processingDate = dateWithoutTime(asset.creationDate)
+        if tmpDayAsset != nil && processingDate != tmpDayAsset!.day {
             
             tmpDayAsset = nil
         }
@@ -155,15 +160,3 @@ private func divideByDay(dateSortedAssets dateSortedAssets: PhotosProviderAssets
     return dayAssets
 }
 
-private func dateWithoutTime(date: NSDate?) -> NSDate? {
-    
-    guard let date = date else {
-        
-        return nil
-    }
-    
-    let calendar: NSCalendar = NSCalendar.currentCalendar()
-    let units: NSCalendarUnit = [.Year, .Month, .Day]
-    let comp: NSDateComponents = calendar.components(units, fromDate: date)
-    return calendar.dateFromComponents(comp)
-}

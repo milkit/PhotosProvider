@@ -23,27 +23,27 @@ public protocol PhotosProviderAsset: class {
     var pixelWidth: Int { get }
     var pixelHeight: Int { get }
     
-    var creationDate: NSDate? { get }
-    var modificationDate: NSDate? { get }
+    var creationDate: Date? { get }
+    var modificationDate: Date? { get }
     
     var location: CLLocation? { get }
-    var duration: NSTimeInterval { get }
+    var duration: TimeInterval { get }
     
     var hidden: Bool { get }
     var favoriteAsset: Bool { get }
     
-    var originalImageDownloadProgress: NSProgress? { get }
+    var originalImageDownloadProgress: Progress? { get }
     
     func requestImage(
-        targetSize targetSize: CGSize,
-        progress: NSProgress? -> Void,
+        targetSize: CGSize,
+        progress: (Progress?) -> Void,
         option: PhotosProviderAssetOption?,
-        completion: (PhotosProviderAsset, PhotosProviderAssetResult) -> Void)
+        completion: @escaping (PhotosProviderAsset, PhotosProviderAssetResult) -> Void)
     
     func requestOriginalImage(
-        progress progress: NSProgress? -> Void,
+        progress: @escaping (Progress?) -> Void,
         option: PhotosProviderAssetOption?,
-        completion: (PhotosProviderAsset, PhotosProviderAssetResult) -> Void)
+        completion: @escaping (PhotosProviderAsset, PhotosProviderAssetResult) -> Void)
     
     func cancelRequestImage()
     func cancelRequestOriginalImage()
@@ -51,65 +51,66 @@ public protocol PhotosProviderAsset: class {
 
 public enum AssetMediaType: Int {
     
-    case Unknown
-    case Image
-    case Video
-    case Audio
+    case unknown
+    case image
+    case video
+    case audio
 }
 
 extension PHAsset: PhotosProviderAsset {
     
     public var favoriteAsset: Bool {
         
-        return self.favorite
+        return isFavorite
     }
     
     public var assetMediaType: AssetMediaType {
         
-        return AssetMediaType(rawValue: self.mediaType.rawValue)!
+        return AssetMediaType(rawValue: mediaType.rawValue)!
     }
     
     public func requestImage(
-        targetSize targetSize: CGSize,
-        progress: NSProgress? -> Void,
+        targetSize: CGSize,
+        progress: (Progress?) -> Void,
         option: PhotosProviderAssetOption?,
-        completion: (PhotosProviderAsset, PhotosProviderAssetResult) -> Void) {
+        completion: @escaping (PhotosProviderAsset, PhotosProviderAssetResult) -> Void) {
         
-        let contentMode: PHImageContentMode = option?.contentMode ?? .AspectFill
+        let contentMode: PHImageContentMode = option?.contentMode ?? .aspectFill
         
-        self.imageRequestID = PHImageManager.defaultManager().requestImageForAsset(
-            self,
+        imageRequestID = PHImageManager.default().requestImage(
+            for: self,
             targetSize: targetSize,
             contentMode: contentMode,
-            options: option?.imageRequestOptions) { (image, info) -> Void in
+            options: option?.imageRequestOptions) { [unowned self] image, info in
                 
                 guard let image = image else {
-                    dispatch_async(dispatch_get_main_queue()) {
-                        completion(self, .Failure(PhotosProviderAssetResultErrorType.Unknown))
+                    
+                    DispatchQueue.main.async {
+                        completion(self, .failure(PhotosProviderAssetResultErrorType.unknown))
                     }
                     return
                 }
                 
-                dispatch_async(dispatch_get_main_queue()) {
-                    completion(self, .Success(image))
+                DispatchQueue.main.async {
+                    completion(self, .success(image))
                 }
         }
     }
     
     public func requestOriginalImage(
-        progress progress: NSProgress? -> Void,
+        progress: @escaping (Progress?) -> Void,
         option: PhotosProviderAssetOption?,
-        completion: (PhotosProviderAsset, PhotosProviderAssetResult) -> Void) {
+        completion: @escaping (PhotosProviderAsset, PhotosProviderAssetResult) -> Void) {
         
         let imageRequestOptions: PHImageRequestOptions = option?.imageRequestOptions ?? PHImageRequestOptions()
         
         if imageRequestOptions.progressHandler == nil {
             
-            imageRequestOptions.progressHandler = { _progress, error, stop, info in
+            imageRequestOptions.progressHandler = { [unowned self] _progress, error, stop, info in
                 
-                dispatch_async(dispatch_get_main_queue()) {
+                DispatchQueue.main.async {
                     if self.originalImageDownloadProgress == nil {
-                        self.originalImageDownloadProgress = NSProgress(totalUnitCount: 10000)
+                        self.originalImageDownloadProgress = Progress(totalUnitCount: 10000)
                         progress(self.originalImageDownloadProgress)
                     }
                     
@@ -122,28 +123,32 @@ extension PHAsset: PhotosProviderAsset {
             }
         }
         
-        let contentMode: PHImageContentMode = option?.contentMode ?? .AspectFill
+        let contentMode: PHImageContentMode = option?.contentMode ?? .aspectFill
         
-        self.originalImageRequestID = PHImageManager.defaultManager().requestImageForAsset(
-            self,
-            targetSize: CGSize(width: self.pixelWidth, height: self.pixelHeight),
+        originalImageRequestID = PHImageManager.default().requestImage(
+            for: self,
+            targetSize: CGSize(width: pixelWidth, height: pixelHeight),
             contentMode: contentMode,
-            options: imageRequestOptions) { (image, info) -> Void in
+            options: imageRequestOptions) { [unowned self] (image, info) -> Void in
                 
                 guard let image = image else {
-                    completion(self, .Failure(PhotosProviderAssetResultErrorType.Unknown))
+                    DispatchQueue.main.async {
+                        completion(self, .failure(PhotosProviderAssetResultErrorType.unknown))
+                    }
                     return
                 }
                 
-                completion(self, .Success(image))
+                DispatchQueue.main.async {
+                    completion(self, .success(image))
+                }
         }
     }
     
-    public dynamic var originalImageDownloadProgress: NSProgress? {
+    public dynamic var originalImageDownloadProgress: Progress? {
         
         get {
             
-            let value = objc_getAssociatedObject(self, &StoredProperties.originalImageDownloadProgress) as? NSProgress
+            let value = objc_getAssociatedObject(self, &StoredProperties.originalImageDownloadProgress) as? Progress
             return value
         }
         set {
@@ -158,26 +163,26 @@ extension PHAsset: PhotosProviderAsset {
     
     public func cancelRequestImage() {
         
-        guard let imageRequestID = self.imageRequestID else {
+        guard let imageRequestID = imageRequestID else {
             return
         }
-        PHImageManager.defaultManager().cancelImageRequest(imageRequestID)
+        PHImageManager.default().cancelImageRequest(imageRequestID)
     }
     
     public func cancelRequestOriginalImage() {
         
-        guard let originalImageRequestID = self.originalImageRequestID else {
+        guard let originalImageRequestID = originalImageRequestID else {
             return
         }
-        PHImageManager.defaultManager().cancelImageRequest(originalImageRequestID)
-        self.originalImageDownloadProgress?.cancel()
+        PHImageManager.default().cancelImageRequest(originalImageRequestID)
+        originalImageDownloadProgress?.cancel()
     }
     
     private var imageRequestID: PHImageRequestID? {
     
         get {
             
-            let value = (objc_getAssociatedObject(self, &StoredProperties.imageRequestID) as? NSNumber)?.intValue
+            let value = (objc_getAssociatedObject(self, &StoredProperties.imageRequestID) as? NSNumber)?.int32Value
             return value
         }
         set {
@@ -188,7 +193,7 @@ extension PHAsset: PhotosProviderAsset {
             objc_setAssociatedObject(
                 self,
                 &StoredProperties.imageRequestID,
-                NSNumber(int: newValue),
+                NSNumber(value: newValue as Int32),
                 objc_AssociationPolicy.OBJC_ASSOCIATION_RETAIN_NONATOMIC)
             
         }
@@ -198,7 +203,7 @@ extension PHAsset: PhotosProviderAsset {
     
         get {
             
-            let value = (objc_getAssociatedObject(self, &StoredProperties.originalImageRequestID) as? NSNumber)?.intValue
+            let value = (objc_getAssociatedObject(self, &StoredProperties.originalImageRequestID) as? NSNumber)?.int32Value
             return value
         }
         set {
@@ -209,7 +214,7 @@ extension PHAsset: PhotosProviderAsset {
             objc_setAssociatedObject(
                 self,
                 &StoredProperties.originalImageRequestID,
-                NSNumber(int: newValue),
+                NSNumber(value: newValue),
                 objc_AssociationPolicy.OBJC_ASSOCIATION_RETAIN_NONATOMIC)
             
         }
