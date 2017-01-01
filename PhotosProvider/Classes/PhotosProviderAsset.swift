@@ -36,7 +36,7 @@ public protocol PhotosProviderAsset: class {
     
     func requestImage(
         targetSize: CGSize,
-        progress: (Progress?) -> Void,
+        progress: @escaping (Progress?) -> Void,
         option: PhotosProviderAssetOption?,
         completion: @escaping (PhotosProviderAsset, PhotosProviderAssetResult) -> Void)
     
@@ -71,7 +71,7 @@ extension PHAsset: PhotosProviderAsset {
     
     public func requestImage(
         targetSize: CGSize,
-        progress: (Progress?) -> Void,
+        progress: @escaping (Progress?) -> Void,
         option: PhotosProviderAssetOption?,
         completion: @escaping (PhotosProviderAsset, PhotosProviderAssetResult) -> Void) {
         

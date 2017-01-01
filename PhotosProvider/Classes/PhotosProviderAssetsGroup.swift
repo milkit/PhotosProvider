@@ -130,7 +130,7 @@ fileprivate func divideByDay(dateSortedAssets: PhotosProviderAssetsGroup) -> Pho
     
     func dateWithoutTime(_ date: Date!) -> Date {
         
-        let calendar = Calendar.current
+        let calendar = Foundation.Calendar.current
         let dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
         return calendar.date(from: dateComponents)!
     }
